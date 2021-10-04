@@ -11,7 +11,7 @@ import asyncio
 my_secret = os.environ['TOKEN']
 ETHERSCAN_API_KEY = os.environ['ETHERSCAN_API_KEY']
 client = discord.Client()
-MINUTES = 2 #回看的频率，每MINUTE分钟
+MINUTES = 1 #回看的频率，每MINUTE分钟
 #DC_CHANNEL_ID = 894187422290685963 #test server
 DC_CHANNEL_ID = 894169478177390612 #production on MADNFTs
 
@@ -71,11 +71,9 @@ def storeTransactions(sales,db):
   print(updated_db)
   return updated_db
 
+
 """从opeansea上获得最新的交易，并放入数据库中"""
-def getTransactions(db,num=20): #todo:修改默认值
-  now = datetime.now()
-  #= 设置一个查询的范围
-  interval_start = now - timedelta(minutes=MINUTES)
+def getTransactions(db, start,end, num=50):
   url = "https://api.opensea.io/api/v1/events"
   # OPEANSEA: LOSTPOETS
   # ref:https://docs.opensea.io/reference/retrieving-asset-events
@@ -84,8 +82,8 @@ def getTransactions(db,num=20): #todo:修改默认值
                 "offset":"0",
                 "limit": num, #可以调整 最多300
                 'event_type':'successful', #获取最新交易数据
-                'occurred_after': interval_start,
-                'occurred_before': now}
+                'occurred_after': start,
+                'occurred_before': end}
   headers = {"Accept": "application/json"}
   response = requests.request("GET", url, headers=headers, params=querystring)
   #=将数据转换成JSON格式
@@ -110,22 +108,28 @@ def scanEtherTransaction(sale):
   value = int(etherscan['input'][start:end],16)/1e18 #in Wei so convert
   return value
 
-# =这是最重要的程序：自动从后台发消息
+
+"""这是最重要的程序：自动从后台发消息"""
 async def my_background_task():
     await client.wait_until_ready()
     #= 这个决定了发布消息的channel
     channel = client.get_channel(id=DC_CHANNEL_ID)
-    await channel.send('I am a hard working bot.. Start working..')
+    await channel.send('I am a hard working bot at next level ... Start working every {} minute ...'.format(MINUTES))
     while not client.is_closed():
+        #以这个时间段为准，记为timestamp
+        timestamp = datetime.now()
+        start = (timestamp - timedelta(minutes=MINUTES)).replace(second=0,microsecond=0)
+        end = start+timedelta(minutes=1)
+
         #获取过去一段时间的交易，并存入数据库中 
-        db_df = getTransactions(db)
+        db_df = getTransactions(db,start,end)
         print('Transactions done!')
-        #过去5分钟的交易
-        deadline = datetime.now() - timedelta(minutes=MINUTES)
+
         #=查看db_df是否有新的交易
-        #await channel.send('Smart bot found {} transactions during past {} minutes'.format(db_df.shape[0],MINUTES))
+        #await channel.send('Smart bot found {} transactions between {}  and {}'.format(db_df.shape[0],start,end))
+
         if db_df.shape[0] != 0: 
-          matched = db_df[db_df['sale_time']>=deadline].sort_values(by=['sale_time'])
+          matched = db_df[db_df['sale_time']>=start].sort_values(by=['sale_time'])
           #= 如果有新的交易，则发布到channel上
           if matched.shape[0]!= 0:
             for idx, poet in matched.iterrows():
