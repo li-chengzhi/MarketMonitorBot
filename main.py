@@ -97,7 +97,7 @@ async def my_background_task():
         #以这个时间段为准，记为timestamp
         timestamp = datetime.now()
         start = (timestamp - timedelta(minutes=MINUTES)).replace(second=0,microsecond=0)
-        end = start+timedelta(minutes=1)
+        end = start+timedelta(minutes=MINUTES)
 
         #获取过去一段时间的交易
         new_sales = getTransactions(start,end)
